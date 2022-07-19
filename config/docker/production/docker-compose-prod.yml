@@ -1,0 +1,54 @@
+version: '2.1' 
+
+services:
+  app:
+    restart: always
+    build: 
+      context: ../../../
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    entrypoint: ["python", "flask_app.py"]
+
+  postgres:
+    restart: always
+    image: postgres:latest
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:latest
+    command: redis-server
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
+  client:
+    build:
+      context: ../../../
+      dockerfile: Dockerfile-node
+    volumes:
+      - ../../../:/home/ubuntu/celery-scheduler/
+      - /home/ubuntu/celery-scheduler/node_modules
+    ports:
+      - "3000:3000"
+    command: ["npm", "run", "start"]
+    depends_on:
+      app:
+        condition: service_started
+
+

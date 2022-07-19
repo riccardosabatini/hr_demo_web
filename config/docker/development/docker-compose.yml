@@ -1,0 +1,66 @@
+version: '2.1' 
+
+services:
+  app:
+    restart: always
+    build: 
+      context: ../../../
+      dockerfile: Dockerfile
+    env_file:
+      - dev-variables.env
+    volumes:
+      - ../../../:/app
+    ports:
+      - "5000:5000"
+    command: /bin/bash -c "python flask_app.py"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    restart: always
+    build: ../../db
+    environment:
+      - FILLA_DB_USER=test_user
+      - FILLA_DB_PASSWORD=test_pw
+      - FILLA_DB_DATABASE=f1_flask_db
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  redis:
+    image: redis:latest
+    environment:
+      - REDIS_HOST=redis
+    ports:
+      - "6379:6379"
+    command: redis-server
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 3s
+      retries: 5
+
+  client:
+    build:
+      context: ../../../
+      dockerfile: Dockerfile-node
+    env_file:
+      - dev-variables.env
+    volumes:
+      - ../../../:/home/ubuntu/celery-scheduler/
+      - /home/ubuntu/celery-scheduler/node_modules
+    ports:
+      - "3000:3000"
+    command: /bin/bash -c "npm run dev-build && npm run start"
+    depends_on:
+      app:
+        condition: service_started
+
